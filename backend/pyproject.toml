@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 95
+exclude = ['alembic']
+
+[tool.ruff.lint]
+extend-select = ["E501"]
+
+[tool.pytest]
+addopts = ["-v"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+strict_markers = true
+python_files = ["tests.py", "test_*.py", "*_test.py"]
+markers = ["slow"]

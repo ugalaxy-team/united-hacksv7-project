@@ -1,0 +1,47 @@
+from pydantic import model_validator
+from pathlib import Path
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+    EnvSettingsSource,
+    YamlConfigSettingsSource,
+)
+
+PROJECT_PATH = Path(__file__).resolve().parents[2]
+ENV_PATH = str(Path(PROJECT_PATH, ".env"))
+CONFIG_PATH = str(Path(PROJECT_PATH, 'backend', "config.yml"))
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=ENV_PATH, yaml_file=CONFIG_PATH, extra="ignore", env_ignore_empty=True
+    )
+    # .env variables
+    SECRET_KEY: str
+    SQLALCHEMY_DATABASE_URI: str
+    FRONTEND_URL: str
+    HOST: str
+    PORT: int
+
+    # config.yml
+    cors_origins: list[str]
+
+    debug: bool = True
+
+    @model_validator(mode="after")
+    def _set_computed_fields(self):
+        self.FRONTEND_URL.rstrip("/")
+        for i in range(len(self.cors_origins)):
+            self.cors_origins[i] = self.cors_origins[i].rstrip("/")
+        return self
+
+    @classmethod
+    def settings_customise_sources(cls, settings_cls, env_settings, dotenv_settings, **kwargs):
+        return (
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(settings_cls),
+        )
+
+
+settings = Settings()
