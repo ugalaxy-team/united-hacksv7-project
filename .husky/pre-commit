@@ -1,8 +1,10 @@
+set -e
+
 cd frontend
 npx lint-staged
-vitest
+vitest run
 
 
 cd ../backend
 python -m pytest
-python -m ruff format
+python -m ruff format --check
