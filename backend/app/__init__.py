@@ -11,3 +11,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.state.user_websocket_sessions = {}
+
+from .websockets import *
+
+socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
