@@ -1,9 +1,8 @@
-from pydantic import model_validator
+from pydantic import model_validator, BaseModel
 from pathlib import Path
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
-    EnvSettingsSource,
     YamlConfigSettingsSource,
 )
 
@@ -11,6 +10,11 @@ PROJECT_PATH = Path(__file__).resolve().parents[2]
 ENV_PATH = str(Path(PROJECT_PATH, ".env"))
 CONFIG_PATH = str(Path(PROJECT_PATH, 'backend', "config.yml"))
 
+class GameMode(BaseModel):
+    name: str
+    player_count: int # without the AI
+    rounds: int
+    messages_per_round: int
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -22,11 +26,16 @@ class Settings(BaseSettings):
     FRONTEND_URL: str
     HOST: str
     PORT: int
+    REDIS_OM_URL: str
 
     # config.yml
     cors_origins: list[str]
 
     debug: bool = True
+
+    game_modes: list[GameMode] = [
+        GameMode(name='standard', player_count=2, rounds=3, messages_per_round=1)
+    ]
 
     @model_validator(mode="after")
     def _set_computed_fields(self):

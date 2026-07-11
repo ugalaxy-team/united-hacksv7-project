@@ -14,5 +14,8 @@ app.add_middleware(
 app.state.user_websocket_sessions = {}
 
 from .websockets import *
+from redis_om import Migrator
+
+Migrator().run()
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)
