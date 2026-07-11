@@ -15,6 +15,9 @@ class GameMode(BaseModel):
     player_count: int # without the AI
     rounds: int
     messages_per_round: int
+    chatting_duration: int = 20
+    voting_duration: int = 10
+    results_duration: int = 5
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(

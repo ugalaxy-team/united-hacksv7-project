@@ -30,3 +30,7 @@ class Game(JsonModel, index=True):
     # resets every round
     current_votes: list[Vote]
     all_votes: list[Vote]
+    game_mode: str
+    chatting_duration: int
+    voting_duration: int
+    results_duration: int

@@ -1,5 +1,5 @@
 import type { Socket } from 'socket.io-client';
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { onMessage } from "@/ws";
 import MessageCard from "./MessageCard";
 import PlayerSidebarCard from "./PlayerSidebarCard";
@@ -45,6 +45,11 @@ const Game = ({ socket, userId, gameData, onGameEnd }: GameProps) => {
     const [messagesPerRound, setMessagesPerRound] = useState(gameData?.messages_per_round ?? 0);
     const [maxRounds, setMaxRounds] = useState(gameData?.max_rounds ?? 0);
     const [gameEndData, setGameEndData] = useState<GameEndData | null>(null);
+    const [chattingDuration, setChattingDuration] = useState(gameData?.chatting_duration ?? 60);
+    const [votingDuration, setVotingDuration] = useState(gameData?.voting_duration ?? 30);
+    const [resultsDuration, setResultsDuration] = useState(gameData?.results_duration ?? 10);
+    const [timeRemaining, setTimeRemaining] = useState(0);
+    const phaseStartRef = useRef(0);
 
     useEffect(() => {
         if (!gameData) return;
@@ -57,7 +62,35 @@ const Game = ({ socket, userId, gameData, onGameEnd }: GameProps) => {
         setRound(gameData.round ?? 1);
         setMessagesPerRound(gameData.messages_per_round ?? 0);
         setMaxRounds(gameData.max_rounds ?? 0);
+        setChattingDuration(gameData.chatting_duration ?? 60);
+        setVotingDuration(gameData.voting_duration ?? 30);
+        setResultsDuration(gameData.results_duration ?? 10);
     }, [gameData]);
+
+    useEffect(() => {
+        if (!phase) return;
+        let duration: number;
+        if (phase === 'chatting') duration = chattingDuration;
+        else if (phase === 'voting') duration = votingDuration;
+        else if (phase === 'results') duration = resultsDuration;
+        else return;
+
+        setTimeRemaining(duration);
+        phaseStartRef.current = Date.now();
+
+        const interval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - phaseStartRef.current) / 1000);
+            const remaining = duration - elapsed;
+            if (remaining <= 0) {
+                setTimeRemaining(0);
+                clearInterval(interval);
+            } else {
+                setTimeRemaining(remaining);
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [phase, chattingDuration, votingDuration, resultsDuration]);
 
     useEffect(() => {
         const cleanupMessage = onMessage(socket);
@@ -87,6 +120,9 @@ const Game = ({ socket, userId, gameData, onGameEnd }: GameProps) => {
             setRound(data.round ?? round + 1);
             setMessagesPerRound(data.messages_per_round ?? messagesPerRound);
             setMaxRounds(data.max_rounds ?? maxRounds);
+            setChattingDuration(data.chatting_duration ?? chattingDuration);
+            setVotingDuration(data.voting_duration ?? votingDuration);
+            setResultsDuration(data.results_duration ?? resultsDuration);
         };
 
         const onGameEnd = (data: GameEndData) => {
@@ -135,7 +171,7 @@ const Game = ({ socket, userId, gameData, onGameEnd }: GameProps) => {
         <section className="relative">
             <div className="flex">
                 <div className="flex-1">
-                    <p>Round {round}/{maxRounds}</p>
+                    <p>Round {round}/{maxRounds} <span className="ml-4 text-sm text-gray-500">Time: {timeRemaining}s</span></p>
                     <div className="h-96 overflow-y-auto border border-gray-300 p-2">
                         {(() => {
                             let lastRound = 0;

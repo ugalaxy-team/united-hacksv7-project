@@ -1,18 +1,16 @@
-import socketio
-from app.config import settings, GameMode
+from app.config import settings
 from app import app
 from .schemas import User
-from redis_om import get_redis_connection, NotFoundError
-from .models import Player, Game, Message, Vote
-import uuid
+from redis_om import NotFoundError
+from .models import Player, Message, Vote
 import datetime
-import asyncio
-import random
 from fastapi.encoders import jsonable_encoder
-from pydantic import ValidationError
+from .services import sio, redis
+from .util import (
+    leave_queue, get_player, get_or_create_player, get_current_game,
+    start_game, run_transition_now,
+)
 
-sio = socketio.AsyncServer(cors_allowed_origins=settings.cors_origins, async_mode="asgi", logger=settings.debug)
-redis = get_redis_connection(url=settings.REDIS_OM_URL, decode_responses=True)
 
 @sio.event
 async def connect(sid, environ, auth):
@@ -28,6 +26,7 @@ async def connect(sid, environ, auth):
         id=user_id,
     )
 
+
 @sio.event
 async def disconnect(sid, reason):
     player = get_player(sid)
@@ -37,6 +36,7 @@ async def disconnect(sid, reason):
         player.save()
 
     app.state.user_websocket_sessions.pop(sid, None)
+
 
 @sio.on('queue:join')
 async def queue_join(sid, data):
@@ -86,6 +86,7 @@ async def queue_join(sid, data):
         'player_amount': player_amount
     }
 
+
 @sio.on('queue:leave')
 async def queue_leave(sid, data):
     user: User = app.state.user_websocket_sessions[sid]
@@ -101,70 +102,6 @@ async def queue_leave(sid, data):
         'ok': True,
     }
 
-async def leave_queue(sid: str) -> None:
-    user: User = app.state.user_websocket_sessions[sid]
-    player = get_player(sid)
-    if not player:
-        return
-    queue = player.current_queue
-    if not queue:
-        return
-    redis.srem(queue, user.id)
-    await sio.leave_room(sid, queue)
-    await sio.emit('queue:player_left', {
-        'id': user.id,
-        'player_amount': redis.scard(queue)
-    }, to=queue, skip_sid=sid)
-    if player:
-        player.update(current_queue=None)
-
-async def game_end(game_id: str) -> None:
-    game = get_game(game_id)
-    if not game:
-        return
-    room = f'game:{game_id}'
-    data = jsonable_encoder(game.model_dump())
-    ai_player = random.choice(game.players)
-    victory = False
-    votes = {}
-    for i in game.all_votes:
-        votes[i.vote_for.user_id] = votes.get(i.vote_for.user_id, 0) + 1
-
-    for k, v in votes.items():
-        if v == max(votes.values()) and k == ai_player.user_id:
-            victory = True
-            break
-
-    data['ai_player'] = jsonable_encoder(ai_player)
-    data['victory'] = victory
-    await sio.emit('game:end', data, to=room)
-    await sio.close_room(room)
-
-    for player in game.players:
-        player.update(current_game=None)
-        player.save()
-    game.delete()
-
-async def new_round(game_id: str) -> None:
-    game = get_game(game_id)
-    if not game:
-        return
-    room = f'game:{game_id}'
-    if game.round == game.max_rounds:
-        await game_end(game_id)
-        return
-    game.update(current_votes=[], phase='chatting', round=game.round + 1)
-    game = game.save()
-    await sio.emit('game:new_round', jsonable_encoder(game), to=room)
-
-async def send_results(game_id: str) -> None:
-    game = get_game(game_id)
-    if not game:
-        return
-    room = f'game:{game_id}'
-    await sio.emit('game:results', [v.model_dump() for v in game.current_votes], to=room)
-    await asyncio.sleep(5)
-    await new_round(game_id)
 
 @sio.on('game:vote')
 async def game_vote(sid, data):
@@ -217,9 +154,7 @@ async def game_vote(sid, data):
         for p in game.players
     )
     if all_voted:
-        game.phase = 'results'
-        game = game.save()
-        await send_results(game.room_id)
+        run_transition_now(game.room_id)
 
 
 @sio.on('game:message')
@@ -274,92 +209,4 @@ async def game_message(sid, data):
     )
 
     if all_sent:
-        game.phase = 'voting'
-        game = game.save()
-        await sio.emit('game:voting', to=room)
-
-
-def get_player(sid: str) -> Player | None:
-    user = app.state.user_websocket_sessions.get(sid)
-    if not user:
-        return None
-    try:
-        return Player.find(Player.user_id == user.id).first()
-    except (NotFoundError, ValidationError, ValueError):
-        return None
-
-
-def get_or_create_player(sid: str) -> Player | None:
-    user = app.state.user_websocket_sessions.get(sid)
-    if not user:
-        return None
-    try:
-        return Player.find(Player.user_id == user.id).first()
-    except NotFoundError:
-        player = Player(
-            user_id=user.id,
-            username=user.username,
-        )
-        return player.save()
-
-
-def get_current_queue(sid: str) -> str | None:
-    user = app.state.user_websocket_sessions.get(sid)
-    if not user:
-        return None
-    try:
-        player: Player = Player.find(Player.user_id == user.id).first()
-    except NotFoundError:
-        return None
-    return player.current_queue
-
-def get_game(game_id: str) -> Game | None:
-    try:
-        return Game.find(Game.room_id == game_id).first()
-    except (NotFoundError, ValidationError, ValueError):
-        return None
-
-def get_current_game(sid: str) -> Game | None:
-    user = app.state.user_websocket_sessions.get(sid)
-    if not user:
-        return None
-    try:
-        player: Player = Player.find(Player.user_id == user.id).first()
-    except (NotFoundError, ValidationError, ValueError):
-        return None
-    if not player.current_game:
-        return None
-    try:
-        game: Game = Game.find(Game.room_id == player.current_game).first()
-    except (NotFoundError, ValidationError, ValueError):
-        return None
-    return game
-
-
-async def start_game(players: list[Player], game_mode: GameMode) -> str:
-    '''Returns created game's id'''
-
-    game = Game(
-        room_id=uuid.uuid4().hex,
-        round=1,
-        messages_per_round=game_mode.messages_per_round,
-        max_rounds=game_mode.rounds,
-        phase='chatting',
-        players=players,
-        messages=[],
-        current_votes=[],
-        all_votes=[]
-    )
-    game = game.save()
-    player_ids = [p.user_id for p in players]
-    room = f'game:{game.room_id}'
-    for sid, p in app.state.user_websocket_sessions.items():
-        if p.id in player_ids:
-            await leave_queue(sid)
-            await sio.enter_room(sid, room)
-            player = get_player(sid)
-            if player:
-                player.current_game = game.room_id
-                player.save()
-    await sio.emit('game:start', jsonable_encoder(game), to=room)
-    return room
+        run_transition_now(game.room_id)
