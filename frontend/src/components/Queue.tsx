@@ -8,7 +8,7 @@ const Queue = () => {
     const userId = localStorage.getItem('userId')!;
     const [isJoined, setIsJoined] = useState(false);
     const [playerCount, setPlayerCount] = useState(0);
-    const [gameStarted, setGameStarted] = useState(false);
+    const [gameData, setGameData] = useState<any>(null);
     const socketRef = useRef<Socket>(null);
 
     useEffect(() => {
@@ -24,8 +24,8 @@ const Queue = () => {
             setPlayerCount(data.player_amount);
         });
 
-        socketRef.current.on('game:start', () => {
-            setGameStarted(true);
+        socketRef.current.on('game:start', (data) => {
+            setGameData(data);
         });
 
         return () => {
@@ -36,8 +36,8 @@ const Queue = () => {
         };
     }, []);
 
-    if (gameStarted && socketRef.current) {
-        return <Game socket={socketRef.current} username={username} userId={userId} />;
+    if (gameData && socketRef.current) {
+        return <Game socket={socketRef.current} username={username} userId={userId} gameData={gameData} onGameEnd={() => setGameData(null)} />;
     }
 
     const handleJoin = () => {
