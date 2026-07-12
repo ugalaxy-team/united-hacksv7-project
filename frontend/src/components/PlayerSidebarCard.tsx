@@ -2,11 +2,12 @@ import { type Player } from '../interfaces/WSMessage';
 import Avatar from "boring-avatars";
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 
-const LOTTIE_TARGET = './hiops.json';
+const LOTTIE_TARGET = '/hiops.json';
 
 interface PlayerSidebarCardProps {
   player: Player;
   isMe: boolean;
+  avatarSeed: string;
   isDone: boolean;
   isVotingPhase: boolean;
   onVote: () => void;
@@ -15,11 +16,16 @@ interface PlayerSidebarCardProps {
 export default function PlayerSidebarCard({
   player,
   isMe,
+  avatarSeed,
   isDone,
   isVotingPhase,
   onVote
 }: PlayerSidebarCardProps) {
   const isClickable = isVotingPhase && !isMe;
+
+  const statusText = isVotingPhase
+    ? (isDone ? 'Vote cast' : 'Choosing...')
+    : (isDone ? 'Waiting...' : '\u00A0');
 
   return (
     <div
@@ -38,7 +44,7 @@ export default function PlayerSidebarCard({
         {isVotingPhase && !isMe ? (
           <DotLottieReact src={LOTTIE_TARGET} loop autoplay style={{ width: '70%', height: '70%' }} />
         ) : (
-          <Avatar name={player.user_id} variant="beam" size={48} />
+          <Avatar name={avatarSeed} variant="beam" size={48} />
         )}
       </div>
 
@@ -47,10 +53,7 @@ export default function PlayerSidebarCard({
           {player.username} {isMe && <span className="text-gray-400 font-normal">(You)</span>}
         </div>
         <div className={`text-xs font-semibold truncate ${isDone ? 'text-green-500' : 'text-gray-400'}`}>
-          {isVotingPhase
-            ? (isDone ? 'Vote cast' : 'Choosing...')
-            : (isDone ? 'Waiting...' : 'Typing...')
-          }
+          {statusText}
         </div>
       </div>
 

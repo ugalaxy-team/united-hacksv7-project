@@ -4,14 +4,15 @@ import Avatar from "boring-avatars";
 interface MessageCardProps {
   message: Message;
   isMe: boolean;
+  avatarSeed: string;
 }
 
-export default function MessageCard({ message, isMe }: MessageCardProps) {
+export default function MessageCard({ message, isMe, avatarSeed }: MessageCardProps) {
   return (
     <div className={`flex flex-col mb-4 w-full ${isMe ? 'items-end' : 'items-start'}`}>
       {!isMe && (
         <div className="flex items-center mb-1 ml-2">
-          <Avatar name={message.sender.user_id} variant="beam" size={20} />
+          <Avatar name={avatarSeed} variant="beam" size={20} />
           <span className="text-xs text-gray-500 ml-2 font-bold">
             {message.sender.username}
           </span>
