@@ -3,12 +3,14 @@ import datetime
 import random
 import uuid
 
-from openai import AsyncOpenAI
 from fastapi.encoders import jsonable_encoder
+from loguru import logger
+from openai import AsyncOpenAI
 
 from app.config import settings
 from .services import sio
 from .models import Player, Message, Vote
+from app.services import scheduler
 
 client = AsyncOpenAI(
     base_url="https://openrouter.ai/api/v1",
@@ -16,6 +18,7 @@ client = AsyncOpenAI(
 )
 
 AI_MODEL = "tencent/hy3:free"
+AI_MESSAGE_JOB_PREFIX = 'ai_message'
 
 SYSTEM_PROMPT = """\
 You are playing an ordinary participant in an anonymous group chat, \
@@ -36,6 +39,16 @@ the topic.
 - Never mention that you are an AI, a model, a prompt, or a game.
 - Output ONLY the message text itself, no quotes, no signature.
 """
+
+FALLBACK_REPLIES = [
+    "lol wait what",
+    "hold on im thinking",
+    "hmm idk about that one",
+    "yeah fair point tbh",
+    "wait can u repeat that",
+    "lol true",
+    "not gonna lie no clue",
+]
 
 
 def spawn_ai_player() -> Player:
@@ -68,20 +81,60 @@ async def generate_ai_reply(game, ai_player: Player) -> str:
         f"Write your next chat message (as {ai_player.username})."
     )
 
-    resp = await client.chat.completions.create(
-        model=AI_MODEL,
-        max_tokens=60,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt},
-        ],
-    )
-    text = (resp.choices[0].message.content or "").strip()
-    return text.strip('"').strip()
+    try:
+        resp = await client.chat.completions.create(
+            model=AI_MODEL,
+            max_tokens=60,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        text = (resp.choices[0].message.content or "").strip().strip('"').strip()
+        if not text:
+            raise ValueError("empty completion")
+        return text
+    except Exception as e:
+        logger.error(
+            f"[ai] completion failed for game={game.room_id} round={game.round}: {e}"
+        )
+        return random.choice(FALLBACK_REPLIES)
 
 
 async def try_ai_message(game_id: str) -> None:
     from .util import get_game
+
+    game = await get_game(game_id)
+    if not game:
+        logger.warning(f"[ai] schedule_ai_round: game {game_id} not found")
+        return
+    ai_player = get_ai_player(game)
+    if not ai_player:
+        logger.warning(f"[ai] schedule_ai_round: no AI player in game {game_id}")
+        return
+
+    n_messages = random.randint(1, max(1, game.messages_per_round))
+    duration = game.chatting_duration
+    slots = sorted(random.uniform(3, max(4, duration - 3)) for _ in range(n_messages))
+    logger.info(
+        f"[ai] game={game_id} round={game.round}: scheduling {n_messages} AI message(s) at +{[round(s, 1) for s in slots]}s"
+    )
+
+    for i, delay in enumerate(slots):
+        scheduler.add_job(
+            send_ai_message,
+            trigger="date",
+            run_date=datetime.datetime.now(tz=datetime.timezone.utc)
+            + datetime.timedelta(seconds=delay),
+            id=f"{AI_MESSAGE_JOB_PREFIX}:{game_id}:{game.round}:{i}",
+            args=[game_id],
+            misfire_grace_time=5,
+            replace_existing=True,
+        )
+
+
+async def send_ai_message(game_id: str) -> None:
+    from .util import get_game, run_transition_now
 
     game = await get_game(game_id)
     if not game or game.phase != "chatting":
@@ -134,6 +187,9 @@ async def send_ai_message(game_id: str) -> None:
         return
 
     text = await generate_ai_reply(game, ai_player)
+    logger.info(
+        f"[ai] game={game_id} round={game.round}: {ai_player.username} -> {text!r}"
+    )
 
     message = Message(
         text=text,
@@ -156,6 +212,9 @@ async def send_ai_message(game_id: str) -> None:
         for p in game.players
     )
     if all_sent:
+        logger.info(
+            f"[ai] game={game_id} round={game.round}: all players done, forcing transition"
+        )
         run_transition_now(game_id)
 
 
