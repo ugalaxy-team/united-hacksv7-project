@@ -17,7 +17,11 @@ client = AsyncOpenAI(
     api_key=settings.OPENROUTER_API_KEY,
 )
 
-AI_MODEL = "tencent/hy3:free"
+AI_MODELS = [
+    "openai/gpt-4o-mini",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "tencent/hy3:free",
+]
 AI_MESSAGE_JOB_PREFIX = 'ai_message'
 
 SYSTEM_PROMPT = """\
@@ -51,6 +55,43 @@ FALLBACK_REPLIES = [
 ]
 
 
+def _normalize_ai_text(text: str | None) -> str:
+    clean = (text or "").strip().strip('"').strip("'").strip()
+    if not clean:
+        return ""
+    parts = clean.split()
+    if len(parts) > 18:
+        clean = " ".join(parts[:18])
+    return clean
+
+
+def _build_contextual_fallback_reply(game, ai_player: Player) -> str:
+    history = [m for m in game.messages if m.round == game.round]
+    last_message = history[-1].text if history else ""
+    topic = getattr(game, "topic", "") or ""
+
+    if last_message:
+        return random.choice(
+            [
+                "yeah that feels fair",
+                "lol true",
+                "wait what do u mean",
+                "fair point tbh",
+                "i see what u mean",
+            ]
+        )
+    if topic:
+        return random.choice(
+            [
+                "this topic is kinda wild",
+                "i have thoughts on this",
+                "honestly this is funny",
+                "that one is so random",
+            ]
+        )
+    return random.choice(FALLBACK_REPLIES)
+
+
 def spawn_ai_player() -> Player:
     from app.util import generate_username
 
@@ -81,24 +122,36 @@ async def generate_ai_reply(game, ai_player: Player) -> str:
         f"Write your next chat message (as {ai_player.username})."
     )
 
-    try:
-        resp = await client.chat.completions.create(
-            model=AI_MODEL,
-            max_tokens=60,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": prompt},
-            ],
-        )
-        text = (resp.choices[0].message.content or "").strip().strip('"').strip()
-        if not text:
-            raise ValueError("empty completion")
-        return text
-    except Exception as e:
-        logger.error(
-            f"[ai] completion failed for game={game.room_id} round={game.round}: {e}"
-        )
-        return random.choice(FALLBACK_REPLIES)
+    if not settings.OPENROUTER_API_KEY:
+        logger.warning("[ai] no OpenRouter API key configured, using contextual fallback")
+        return _build_contextual_fallback_reply(game, ai_player)
+
+    last_error = None
+    for model in AI_MODELS:
+        try:
+            resp = await client.chat.completions.create(
+                model=model,
+                max_tokens=60,
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            text = _normalize_ai_text(resp.choices[0].message.content)
+            if not text:
+                raise ValueError("empty completion")
+            logger.info(f"[ai] generated reply for game={game.room_id} using {model}: {text!r}")
+            return text
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                f"[ai] completion failed for game={game.room_id} round={game.round} using {model}: {e}"
+            )
+
+    logger.error(
+        f"[ai] all completion attempts failed for game={game.room_id} round={game.round}: {last_error}"
+    )
+    return _build_contextual_fallback_reply(game, ai_player)
 
 
 async def try_ai_message(game_id: str) -> None:
@@ -133,41 +186,47 @@ async def try_ai_message(game_id: str) -> None:
         )
 
 
-async def send_ai_message(game_id: str) -> None:
-    from .util import get_game, run_transition_now
-
-    game = await get_game(game_id)
-    if not game or game.phase != "chatting":
-        return
-    ai_player = get_ai_player(game)
-    if not ai_player:
-        return
-
-    ai_count = sum(
-        1 for m in game.messages
-        if m.sender.user_id == ai_player.user_id and m.round == game.round
+def _message_count_for_player(game, user_id: str) -> int:
+    return sum(
+        1 for m in game.messages if m.sender.user_id == user_id and m.round == game.round
     )
-    if ai_count >= game.messages_per_round:
-        return
 
-    humans_done = all(
-        sum(
-            1 for m in game.messages
-            if m.sender.user_id == p.user_id and m.round == game.round
-        ) >= game.messages_per_round
+
+def _humans_done(game) -> bool:
+    return all(
+        _message_count_for_player(game, p.user_id) >= game.messages_per_round
         for p in game.players
         if not p.is_ai
     )
-
-    if not (random.random() < settings.ai_message_chance or humans_done):
-        return
-
-    asyncio.create_task(send_ai_message(game_id))
 
 
 async def send_ai_message(game_id: str) -> None:
     from .schemas import MessagePublic
     from .util import get_game, run_transition_now
+
+    game = await get_game(game_id)
+    if not game or game.phase != "chatting":
+        return
+
+    ai_player = get_ai_player(game)
+    if not ai_player:
+        return
+
+    ai_count = _message_count_for_player(game, ai_player.user_id)
+    if ai_count >= game.messages_per_round:
+        return
+
+    has_human_activity = any(
+        _message_count_for_player(game, p.user_id) > 0 for p in game.players if not p.is_ai
+    )
+    should_send = (
+        ai_count == 0
+        or _humans_done(game)
+        or has_human_activity
+        or random.random() < settings.ai_message_chance
+    )
+    if not should_send:
+        return
 
     delay = random.uniform(settings.ai_response_min_delay, settings.ai_response_max_delay)
     await asyncio.sleep(delay)
@@ -175,14 +234,12 @@ async def send_ai_message(game_id: str) -> None:
     game = await get_game(game_id)
     if not game or game.phase != "chatting":
         return
+
     ai_player = get_ai_player(game)
     if not ai_player:
         return
 
-    ai_count = sum(
-        1 for m in game.messages
-        if m.sender.user_id == ai_player.user_id and m.round == game.round
-    )
+    ai_count = _message_count_for_player(game, ai_player.user_id)
     if ai_count >= game.messages_per_round:
         return
 
@@ -202,13 +259,14 @@ async def send_ai_message(game_id: str) -> None:
     game.messages.append(message)
     game = await game.save()
 
-    await sio.emit("game:message_sent", jsonable_encoder(MessagePublic.model_validate(message)), to=f"game:{game_id}")
+    await sio.emit(
+        "game:message_sent",
+        jsonable_encoder(MessagePublic.model_validate(message)),
+        to=f"game:{game_id}",
+    )
 
     all_sent = all(
-        sum(
-            1 for m in game.messages
-            if m.sender.user_id == p.user_id and m.round == game.round
-        ) >= game.messages_per_round
+        _message_count_for_player(game, p.user_id) >= game.messages_per_round
         for p in game.players
     )
     if all_sent:
@@ -246,6 +304,13 @@ async def try_ai_vote(game_id: str) -> None:
 async def cast_ai_vote(game_id: str) -> None:
     from .schemas import VotePublic
     from .util import get_game, run_transition_now
+
+    game = await get_game(game_id)
+    if not game or game.phase != "voting":
+        return
+    ai_player = get_ai_player(game)
+    if not ai_player:
+        return
 
     delay = random.uniform(settings.ai_response_min_delay, settings.ai_response_max_delay)
     await asyncio.sleep(delay)

@@ -13,7 +13,7 @@ from app import app
 from .schemas import User, GamePublic, PlayerPublic
 from .models import Player, Game
 from .services import sio, redis, scheduler
-from .ai import spawn_ai_player, get_ai_player
+from .ai import spawn_ai_player, get_ai_player, try_ai_message
 
 _ADJECTIVES = [
     "quiet", "lucky", "sleepy", "salty", "cosmic", "rusty", "tiny", "loud",
@@ -283,4 +283,5 @@ async def start_game(players: list[Player], game_mode: GameMode) -> str:
                 await player.save()
     await sio.emit("game:start", jsonable_encoder(GamePublic.model_validate(game)), to=room)
     schedule_transition(game.room_id, game.chatting_duration, go_to_voting)
+    await try_ai_message(game.room_id)
     return room
