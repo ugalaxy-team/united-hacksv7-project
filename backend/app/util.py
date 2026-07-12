@@ -1,8 +1,8 @@
 from app.config import settings, GameMode
 from app import app
 from .schemas import User
-from redis_om import NotFoundError
-from .models import Player, Game, Message, Vote
+from aredis_om import NotFoundError
+from .models import Player, Game
 import uuid
 import datetime
 import random
@@ -52,23 +52,23 @@ def schedule_transition(game_id: str, delay: int, func) -> None:
 
 
 async def go_to_voting(game_id: str) -> None:
-    game = get_game(game_id)
+    game = await get_game(game_id)
     if not game or game.phase != 'chatting':
         return
     room = f'game:{game_id}'
     game.phase = 'voting'
-    game = game.save()
+    game = await game.save()
     await sio.emit('game:voting', to=room)
     schedule_transition(game_id, game.voting_duration, go_to_results)
 
 
 async def go_to_results(game_id: str) -> None:
-    game = get_game(game_id)
+    game = await get_game(game_id)
     if not game or game.phase != 'voting':
         return
     room = f'game:{game_id}'
     game.phase = 'results'
-    game = game.save()
+    game = await game.save()
     await sio.emit('game:results', [v.model_dump() for v in game.current_votes], to=room)
     schedule_transition(game_id, game.results_duration, go_to_next_round)
 
@@ -78,7 +78,7 @@ async def go_to_next_round(game_id: str) -> None:
 
 
 async def game_end(game_id: str) -> None:
-    game = get_game(game_id)
+    game = await get_game(game_id)
     if not game:
         return
     cancel_transition(game_id)
@@ -101,96 +101,96 @@ async def game_end(game_id: str) -> None:
     await sio.close_room(room)
 
     for player in game.players:
-        player.update(current_game=None)
-        player.save()
-    game.delete()
+        await player.update(current_game=None)
+        await player.save()
+    await game.delete(game.pk)
 
 
 async def new_round(game_id: str) -> None:
-    game = get_game(game_id)
+    game = await get_game(game_id)
     if not game:
         return
     if game.round == game.max_rounds:
         await game_end(game_id)
         return
-    game.update(current_votes=[], phase='chatting', round=game.round + 1)
-    game = game.save()
+    await game.update(current_votes=[], phase='chatting', round=game.round + 1)
+    game = await game.save()
     await sio.emit('game:new_round', jsonable_encoder(game), to=f'game:{game_id}')
     schedule_transition(game_id, game.chatting_duration, go_to_voting)
 
 
 async def leave_queue(sid: str) -> None:
     user: User = app.state.user_websocket_sessions[sid]
-    player = get_player(sid)
+    player = await get_player(sid)
     if not player:
         return
     queue = player.current_queue
     if not queue:
         return
-    redis.srem(queue, user.id)
+    await redis.srem(queue, user.id)
     await sio.leave_room(sid, queue)
     await sio.emit('queue:player_left', {
         'id': user.id,
-        'player_amount': redis.scard(queue)
+        'player_amount': await redis.scard(queue)
     }, to=queue, skip_sid=sid)
     if player:
-        player.update(current_queue=None)
+        await player.update(current_queue=None)
 
 
-def get_player(sid: str) -> Player | None:
+async def get_player(sid: str) -> Player | None:
     user = app.state.user_websocket_sessions.get(sid)
     if not user:
         return None
     try:
-        return Player.find(Player.user_id == user.id).first()
+        return await Player.find(Player.user_id == user.id).first()
     except (NotFoundError, ValidationError, ValueError):
         return None
 
 
-def get_or_create_player(sid: str) -> Player | None:
+async def get_or_create_player(sid: str) -> Player | None:
     user = app.state.user_websocket_sessions.get(sid)
     if not user:
         return None
     try:
-        return Player.find(Player.user_id == user.id).first()
+        return await Player.find(Player.user_id == user.id).first()
     except NotFoundError:
         player = Player(
             user_id=user.id,
             username=user.username,
         )
-        return player.save()
+        return await player.save()
 
 
-def get_current_queue(sid: str) -> str | None:
+async def get_current_queue(sid: str) -> str | None:
     user = app.state.user_websocket_sessions.get(sid)
     if not user:
         return None
     try:
-        player: Player = Player.find(Player.user_id == user.id).first()
+        player: Player = await Player.find(Player.user_id == user.id).first()
     except NotFoundError:
         return None
     return player.current_queue
 
 
-def get_game(game_id: str) -> Game | None:
+async def get_game(game_id: str) -> Game | None:
     try:
-        return Game.find(Game.room_id == game_id).first()
+        return await Game.find(Game.room_id == game_id).first()
     except (NotFoundError, ValidationError, ValueError):
         return None
 
 
-def get_current_game(sid: str) -> Game | None:
+async def get_current_game(sid: str) -> Game | None:
     user = app.state.user_websocket_sessions.get(sid)
     if not user:
         return None
     try:
-        player: Player = Player.find(Player.user_id == user.id).first()
+        player: Player = await Player.find(Player.user_id == user.id).first()
     except (NotFoundError, ValidationError, ValueError):
         return None
     if not player.current_game:
         return None
     try:
-        game: Game = Game.find(Game.room_id == player.current_game).first()
+        game: Game = await Game.find(Game.room_id == player.current_game).first()
     except (NotFoundError, ValidationError, ValueError):
         return None
     return game
@@ -212,17 +212,17 @@ async def start_game(players: list[Player], game_mode: GameMode) -> str:
         voting_duration=game_mode.voting_duration,
         results_duration=game_mode.results_duration,
     )
-    game = game.save()
+    game = await game.save()
     player_ids = [p.user_id for p in players]
     room = f'game:{game.room_id}'
     for sid, p in app.state.user_websocket_sessions.items():
         if p.id in player_ids:
             await leave_queue(sid)
             await sio.enter_room(sid, room)
-            player = get_player(sid)
+            player = await get_player(sid)
             if player:
                 player.current_game = game.room_id
-                player.save()
+                await player.save()
     await sio.emit('game:start', jsonable_encoder(game), to=room)
     schedule_transition(game.room_id, game.chatting_duration, go_to_voting)
     return room

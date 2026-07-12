@@ -4,11 +4,13 @@ from contextlib import asynccontextmanager
 import socketio
 
 from .config import settings
+from aredis_om import Migrator
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from .services import scheduler
+    await Migrator().run()
     scheduler.start()
     yield
     scheduler.shutdown()
@@ -26,8 +28,5 @@ app.state.user_websocket_sessions = {}
 
 from .websockets import *
 from .services import sio
-from redis_om import Migrator
-
-Migrator().run()
 
 socket_app = socketio.ASGIApp(sio, other_asgi_app=app)

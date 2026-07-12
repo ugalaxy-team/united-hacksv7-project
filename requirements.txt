@@ -26,6 +26,7 @@ python-dotenv==1.2.2
 python-engineio==4.13.3
 python-socketio==5.16.3
 PyYAML==6.0.3
+redis-om==1.1.0
 ruff==0.15.21
 simple-websocket==1.1.0
 SQLAlchemy==2.0.51

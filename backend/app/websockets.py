@@ -1,7 +1,7 @@
 from app.config import settings
 from app import app
 from .schemas import User
-from redis_om import NotFoundError
+from aredis_om import NotFoundError
 from .models import Player, Message, Vote
 import datetime
 from fastapi.encoders import jsonable_encoder
@@ -29,11 +29,11 @@ async def connect(sid, environ, auth):
 
 @sio.event
 async def disconnect(sid, reason):
-    player = get_player(sid)
+    player = await get_player(sid)
     await leave_queue(sid)
     if player:
-        player.update(current_game=None)
-        player.save()
+        await player.update(current_game=None)
+        await player.save()
 
     app.state.user_websocket_sessions.pop(sid, None)
 
@@ -42,7 +42,7 @@ async def disconnect(sid, reason):
 async def queue_join(sid, data):
     user: User = app.state.user_websocket_sessions[sid]
     queue = f"queue:{data['queue']}"
-    if user.id in redis.smembers(queue):
+    if user.id in await redis.smembers(queue):
         await sio.emit('message', {
             'message': 'You are already in queue!',
             'type': 'error'
@@ -59,18 +59,18 @@ async def queue_join(sid, data):
             'type': 'error'
         }, to=sid)
         return
-    redis.sadd(queue, user.id)
+    await redis.sadd(queue, user.id)
     await sio.enter_room(sid, queue)
-    player = get_or_create_player(sid)
-    player.update(current_queue=queue)
-    player = player.save()
+    player = await get_or_create_player(sid)
+    await player.update(current_queue=queue)
+    player = await player.save()
 
-    player_amount = redis.scard(queue)
+    player_amount = await redis.scard(queue)
     if player_amount >= game_mode.player_count:
-        player_ids = redis.smembers(queue)
+        player_ids = await redis.smembers(queue)
         players: list[Player] = []
         for pid in player_ids:
-            p = Player.find(Player.user_id == pid).first()
+            p = await Player.find(Player.user_id == pid).first()
             if p:
                 players.append(p)
         await start_game(players, game_mode)
@@ -91,7 +91,7 @@ async def queue_join(sid, data):
 async def queue_leave(sid, data):
     user: User = app.state.user_websocket_sessions[sid]
     queue = f"queue:{data['queue']}"
-    if not user.id in redis.smembers(queue):
+    if user.id not in await redis.smembers(queue):
         await sio.emit('message', {
             'message': 'You are not in queue!',
             'type': 'error'
@@ -105,7 +105,7 @@ async def queue_leave(sid, data):
 
 @sio.on('game:vote')
 async def game_vote(sid, data):
-    game = get_current_game(sid)
+    game = await get_current_game(sid)
     if not game:
         return
     if game.phase != 'voting':
@@ -115,7 +115,7 @@ async def game_vote(sid, data):
         }, to=sid)
         return
     room = f'game:{game.room_id}'
-    voter = get_player(sid)
+    voter = await get_player(sid)
     if not voter:
         return
     if data['user_id'] == voter.user_id:
@@ -125,7 +125,7 @@ async def game_vote(sid, data):
         }, to=sid)
         return
     try:
-        vote_for = Player.find(Player.user_id==data['user_id']).first()
+        vote_for = await Player.find(Player.user_id==data['user_id']).first()
     except NotFoundError:
         await sio.emit('message', {
             'message': 'Player to vote for not found!',
@@ -144,10 +144,10 @@ async def game_vote(sid, data):
         vote_for=vote_for,
         vote_by=voter
     )
-    vote.save()
+    await vote.save()
     game.current_votes.append(vote)
     game.all_votes.append(vote)
-    game = game.save()
+    game = await game.save()
     await sio.emit('game:vote_casted', jsonable_encoder(vote), to=room)
     all_voted = all(
         any(v.vote_by.user_id == p.user_id for v in game.current_votes)
@@ -160,7 +160,7 @@ async def game_vote(sid, data):
 @sio.on('game:message')
 async def game_message(sid, data):
     try:
-        game = get_current_game(sid)
+        game = await get_current_game(sid)
     except Exception:
         await sio.emit('message', {
             'message': 'Unable to load game state.',
@@ -181,7 +181,7 @@ async def game_message(sid, data):
         }, to=sid)
         return
     room = f'game:{game.room_id}'
-    player = get_player(sid)
+    player = await get_player(sid)
     if not player:
         return
     message_count = sum(1 for m in game.messages if m.sender.user_id == player.user_id and m.round == game.round)
@@ -198,9 +198,9 @@ async def game_message(sid, data):
         sender=player,
         round=game.round
     )
-    message = message.save()
+    message = await message.save()
     game.messages.append(message)
-    game = game.save()
+    game = await game.save()
     await sio.emit('game:message_sent', jsonable_encoder(message), to=room)
 
     all_sent = all(

@@ -1,5 +1,5 @@
 from typing import Optional
-from redis_om import JsonModel, Field
+from aredis_om import JsonModel, Field
 import datetime
 
 class Player(JsonModel, index=True):
