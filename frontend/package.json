@@ -11,6 +11,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@lottiefiles/dotlottie-react": "^0.19.9",
     "@tailwindcss/vite": "^4.3.2",
     "boring-avatars": "^2.0.4",
     "react": "^19.2.7",
