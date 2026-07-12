@@ -1,0 +1,80 @@
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  overflow-x: hidden;
+  background: linear-gradient(180deg, #FBFBF3 0%, #F3F8EE 55%, #EAF5EA 100%);
+}
+
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background-image: radial-gradient(rgba(21, 128, 61, 0.14) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%);
+}
+
+.app-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.app-blob {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(70px);
+  opacity: 0.55;
+}
+
+.app-blob-1 {
+  width: 420px;
+  height: 420px;
+  top: -120px;
+  left: -100px;
+  background: radial-gradient(circle, #86efac 0%, transparent 70%);
+  animation: drift-a 22s ease-in-out infinite alternate;
+}
+
+.app-blob-2 {
+  width: 380px;
+  height: 380px;
+  bottom: -140px;
+  right: -80px;
+  background: radial-gradient(circle, #5eead4 0%, transparent 70%);
+  animation: drift-b 26s ease-in-out infinite alternate;
+}
+
+.app-blob-3 {
+  width: 300px;
+  height: 300px;
+  top: 40%;
+  left: 60%;
+  background: radial-gradient(circle, #bef264 0%, transparent 70%);
+  animation: drift-c 18s ease-in-out infinite alternate;
+}
+
+@keyframes drift-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(60px, 40px) scale(1.12); }
+}
+
+@keyframes drift-b {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-50px, -30px) scale(1.08); }
+}
+
+@keyframes drift-c {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(-40px, 50px) scale(0.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-blob-1, .app-blob-2, .app-blob-3 {
+    animation: none;
+  }
+}
