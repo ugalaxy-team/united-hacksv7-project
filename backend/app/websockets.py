@@ -80,11 +80,7 @@ async def queue_join(sid, data):
     await sio.emit('queue:player_joined', {
         'id': user.id,
         'player_amount': player_amount
-    }, to=queue, skip_sid=sid)
-    return {
-        'ok': True,
-        'player_amount': player_amount
-    }
+    }, to=queue)
 
 
 @sio.on('queue:leave')
@@ -98,9 +94,6 @@ async def queue_leave(sid, data):
         }, to=sid)
         return
     await leave_queue(sid)
-    return {
-        'ok': True,
-    }
 
 
 @sio.on('game:vote')

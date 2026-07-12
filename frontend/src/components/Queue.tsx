@@ -16,12 +16,14 @@ const Queue = () => {
         socketRef.current = io(SOCKET_URL, { ...socketConfig, auth: { username, userId } });
         const cleanupMessage = onMessage(socketRef.current);
 
-        socketRef.current.on('queue:player_left', (data: { player_amount: number }) => {
+        socketRef.current.on('queue:player_left', (data: { id: string; player_amount: number }) => {
             setPlayerCount(data.player_amount);
+            if (data.id === userId) setIsJoined(false);
         });
 
-        socketRef.current.on('queue:player_joined', (data: { player_amount: number }) => {
+        socketRef.current.on('queue:player_joined', (data: { player_amount: number; id: string }) => {
             setPlayerCount(data.player_amount);
+            if (data.id === userId) setIsJoined(true);
         });
 
         socketRef.current.on('game:start', (data) => {
@@ -42,19 +44,11 @@ const Queue = () => {
 
     const handleJoin = () => {
         if (!socketRef.current || !socketRef.current.connected) return;
-        socketRef.current.emit('queue:join', { queue: 'standard' }, (data?: { ok: boolean; player_amount: number }) => {
-            if (!data?.ok) return;
-            setIsJoined(true);
-            setPlayerCount(data.player_amount);
-        });
+        socketRef.current.emit('queue:join', { queue: 'standard' });
     };
     const handleLeave = () => {
         if (!socketRef.current || !socketRef.current.connected) return;
-        socketRef.current.emit('queue:leave', { queue: 'standard' }, (data?: { ok: boolean }) => {
-            if (!data?.ok) return;
-            setIsJoined(false);
-            setPlayerCount(0);
-        });
+        socketRef.current.emit('queue:leave', { queue: 'standard' });
     };
 
     return <section className="flex justify-center items-center">

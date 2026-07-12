@@ -14,8 +14,7 @@ class TestE2EFullGame:
         assert len(app.state.user_websocket_sessions) == 2
 
         mock_sio.emit.reset_mock()
-        result_a = await queue_join(sid, {"queue": "standard"})
-        assert result_a["ok"] is True
+        await queue_join(sid, {"queue": "standard"})
 
         mock_sio.emit.reset_mock()
         await queue_join(sid2, {"queue": "standard"})

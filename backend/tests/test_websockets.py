@@ -54,11 +54,12 @@ class TestDisconnect:
 class TestQueueJoin:
     async def test_success(self, sid, mock_sio):
         await create_user(sid)
-        result = await queue_join(sid, {"queue": "standard"})
+        await queue_join(sid, {"queue": "standard"})
 
-        assert result["ok"] is True
-        assert result["player_amount"] == 1
-
+        mock_sio.emit.assert_any_await("queue:player_joined", {
+            "id": f"user_{sid}",
+            "player_amount": 1
+        }, to="queue:standard")
         mock_sio.enter_room.assert_awaited_once_with(sid, "queue:standard")
 
         player = await find_player(f"user_{sid}")
@@ -70,9 +71,8 @@ class TestQueueJoin:
         await queue_join(sid, {"queue": "standard"})
         mock_sio.emit.reset_mock()
 
-        result = await queue_join(sid, {"queue": "standard"})
+        await queue_join(sid, {"queue": "standard"})
 
-        assert result is None
         mock_sio.emit.assert_awaited_once_with("message", {
             "message": "You are already in queue!",
             "type": "error"
@@ -80,9 +80,8 @@ class TestQueueJoin:
 
     async def test_wrong_game_mode(self, sid, mock_sio):
         await create_user(sid)
-        result = await queue_join(sid, {"queue": "nonexistent"})
+        await queue_join(sid, {"queue": "nonexistent"})
 
-        assert result is None
         mock_sio.emit.assert_awaited_once_with("message", {
             "message": "Wrong game mode!",
             "type": "error"
@@ -111,11 +110,14 @@ class TestQueueJoin:
         await create_user(sid)
         await create_user(sid2)
 
-        result = await queue_join(sid, {"queue": "standard"})
-        assert result == {"ok": True, "player_amount": 1}
-        result = await queue_join(sid2, {"queue": "standard"})
+        await queue_join(sid, {"queue": "standard"})
+        mock_sio.emit.assert_any_await("queue:player_joined", {
+            "id": f"user_{sid}",
+            "player_amount": 1
+        }, to="queue:standard")
 
-        assert result is None
+        await queue_join(sid2, {"queue": "standard"})
+        mock_sio.close_room.assert_awaited_once_with("queue:standard")
 
     async def test_creates_player_if_not_exists(self, sid, mock_sio):
         await create_user(sid, "charlie", "user_c")
@@ -132,21 +134,19 @@ class TestQueueLeave:
         await queue_join(sid, {"queue": "standard"})
         mock_sio.emit.reset_mock()
 
-        result = await queue_leave(sid, {"queue": "standard"})
-        assert result["ok"] is True
+        await queue_leave(sid, {"queue": "standard"})
 
         mock_sio.emit.assert_any_await("queue:player_left", {
             "id": f"user_{sid}",
             "player_amount": 0
-        }, to="queue:standard", skip_sid=sid)
+        }, to="queue:standard")
         mock_sio.leave_room.assert_awaited()
 
     async def test_not_in_queue(self, sid, mock_sio):
         await create_user(sid)
 
-        result = await queue_leave(sid, {"queue": "standard"})
+        await queue_leave(sid, {"queue": "standard"})
 
-        assert result is None
         mock_sio.emit.assert_awaited_once_with("message", {
             "message": "You are not in queue!",
             "type": "error"

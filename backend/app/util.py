@@ -132,7 +132,7 @@ async def leave_queue(sid: str) -> None:
     await sio.emit('queue:player_left', {
         'id': user.id,
         'player_amount': await redis.scard(queue)
-    }, to=queue, skip_sid=sid)
+    }, to=queue)
     if player:
         await player.update(current_queue=None)
 
