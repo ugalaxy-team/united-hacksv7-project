@@ -14,10 +14,10 @@ class TestE2EFullGame:
         assert len(app.state.user_websocket_sessions) == 2
 
         mock_sio.emit.reset_mock()
-        await queue_join(sid, {"queue": "standard"})
+        await queue_join(sid, {"queue": "quickplay"})
 
         mock_sio.emit.reset_mock()
-        await queue_join(sid2, {"queue": "standard"})
+        await queue_join(sid2, {"queue": "quickplay"})
 
         game_start_calls = [c for c in mock_sio.emit.call_args_list if c[0][0] == "game:start"]
         assert len(game_start_calls) >= 1
@@ -26,6 +26,7 @@ class TestE2EFullGame:
         assert len(games) >= 1
         game = games[-1]
         assert len(game.players) == 3
+        assert game.game_mode == "quickplay"
         assert game.phase == "chatting"
         game_id = game.room_id
 

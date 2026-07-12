@@ -44,7 +44,8 @@ class Settings(BaseSettings):
     debug: bool = True
 
     game_modes: list[GameMode] = [
-        GameMode(name='standard', player_count=2, rounds=3, messages_per_round=1)
+        GameMode(name='quickplay', player_count=2, rounds=1, messages_per_round=3),
+        GameMode(name='standard', player_count=3, rounds=3, messages_per_round=1)
     ]
 
     @model_validator(mode="after")

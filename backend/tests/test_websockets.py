@@ -92,16 +92,16 @@ class TestQueueJoin:
         await create_user(sid, "alice", "user_a")
         await create_user(sid2, "bob", "user_b")
 
-        await queue_join(sid, {"queue": "standard"})
+        await queue_join(sid, {"queue": "quickplay"})
         mock_sio.emit.reset_mock()
         mock_sio.enter_room.reset_mock()
 
-        await queue_join(sid2, {"queue": "standard"})
+        await queue_join(sid2, {"queue": "quickplay"})
 
         game_start_calls = [c for c in mock_sio.emit.call_args_list if c[0][0] == "game:start"]
         assert len(game_start_calls) >= 1
 
-        mock_sio.close_room.assert_awaited_once_with("queue:standard")
+        mock_sio.close_room.assert_awaited_once_with("queue:quickplay")
 
         games = await Game.find().all()
         assert len(games) >= 1
@@ -119,7 +119,7 @@ class TestQueueJoin:
         }, to="queue:standard")
 
         await queue_join(sid2, {"queue": "standard"})
-        mock_sio.close_room.assert_awaited_once_with("queue:standard")
+        mock_sio.close_room.assert_not_awaited()
 
     async def test_creates_player_if_not_exists(self, sid, mock_sio):
         await create_user(sid, "charlie", "user_c")
