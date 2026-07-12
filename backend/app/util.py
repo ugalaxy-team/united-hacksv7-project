@@ -27,10 +27,28 @@ _NOUNS = [
     "iguana", "jaguar", "koala", "lemur", "mantis", "newt", "octopus", "puma",
     "quokka", "robin", "sloth", "toucan", "vulture", "weasel",
 ]
+_TOPICS = [
+    "Is pineapple on pizza a crime against humanity?",
+    "If you could have any superpower, but it only works when you are asleep, what would it be?",
+    "Are we living in a simulation or just a very buggy video game?",
+    "Cats vs. Dogs: Who will eventually take over the world?",
+    "If you could only eat one food for the rest of your life, what is it?",
+    "Is water wet? Let's settle this once and for all.",
+    "What's the worst movie trope that needs to die?",
+    "Would you rather fight 100 chicken-sized zombies or 1 zombie-sized chicken?",
+    "Is cereal considered a soup?",
+    "If time travel was real, what's the first minor thing you would change?",
+    "Crypto, AI, or memes: What's the real future of the internet?",
+    "What's the best hidden spot in your city that tourists don't know about?",
+]
 
 
 def generate_username() -> str:
     return f"{random.choice(_ADJECTIVES)}-{random.choice(_NOUNS)}"
+
+
+def generate_topic() -> str:
+    return random.choice(_TOPICS)
 
 
 def get_game_mode(name: str) -> GameMode | None:
@@ -159,11 +177,15 @@ async def leave_queue(sid: str) -> None:
         return
     await redis.srem(queue, user.id)
     await sio.leave_room(sid, queue)
-    await sio.emit('queue:player_left', {
-        'id': user.id,
-        'game_mode': queue.replace('queue:', '', 1),
-        'player_amount': await redis.scard(queue)
-    }, to=queue)
+    await sio.emit(
+        "queue:player_left",
+        {
+            "id": user.id,
+            "game_mode": queue.replace("queue:", "", 1),
+            "player_amount": await redis.scard(queue),
+        },
+        to=queue,
+    )
     if player:
         await player.update(current_queue=None)
 
@@ -238,6 +260,7 @@ async def start_game(players: list[Player], game_mode: GameMode) -> str:
         messages_per_round=game_mode.messages_per_round,
         max_rounds=game_mode.rounds,
         phase="chatting",
+        topic=generate_topic(),
         players=all_players,
         messages=[],
         current_votes=[],
