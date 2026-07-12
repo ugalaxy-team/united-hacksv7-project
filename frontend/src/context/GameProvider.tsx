@@ -2,29 +2,40 @@ import React, { useState, useEffect, type ReactNode } from 'react';
 import { GameContext, type ViewState } from './GameContext';
 import { type GameState, type Message, type Vote, type QueueUpdateResponse } from '../interfaces/WSMessage';
 import { socket, initSocket } from '../ws';
+import generateRandomUsername from 'generate-random-username';
+
+const readOrCreate = (key: string, generator: () => string): string => {
+  const stored = localStorage.getItem(key);
+  if (stored) return stored;
+  const value = generator();
+  localStorage.setItem(key, value);
+  return value;
+};
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
+  const [userId] = useState<string>(() => readOrCreate('userId', () => crypto.randomUUID()));
+  const [username, setUsername] = useState<string>(() => readOrCreate('username', () => generateRandomUsername()));
+  const [avatarSeed, setAvatarSeed] = useState<string>(() => readOrCreate('avatarSeed', () => crypto.randomUUID()));
   const [view, setView] = useState<ViewState>('hero');
   const [playerAmount, setPlayerAmount] = useState<number>(1);
   const [game, setGame] = useState<GameState | null>(null);
 
-  const [avatarSeed] = useState<string>(() => {
-    const stored = localStorage.getItem('avatarSeed');
-    if (stored) return stored;
+  const regenerateUsername = () => {
+    const name = generateRandomUsername();
+    localStorage.setItem('username', name);
+    setUsername(name);
+  };
+
+  const regenerateAvatar = () => {
     const seed = crypto.randomUUID();
     localStorage.setItem('avatarSeed', seed);
-    return seed;
-  });
+    setAvatarSeed(seed);
+  };
 
   const resetPlayerAmount = () => setPlayerAmount(1);
 
   const enterQueue = () => {
-    const currentUserId = localStorage.getItem('userId') || crypto.randomUUID();
-    const currentUsername = localStorage.getItem('username') || 'Player';
-
-    localStorage.setItem('userId', currentUserId);
-
-    initSocket(currentUsername, currentUserId);
+    initSocket(username, userId);
     setView('queue');
   };
 
@@ -35,6 +46,10 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    if (!socket) {
+      initSocket(username, userId);
+    }
+
     if (!socket) return;
 
     const onQueueUpdate = (data: QueueUpdateResponse) => setPlayerAmount(data.player_amount);
@@ -60,18 +75,18 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
       socket?.off('game:new_round');
       socket?.off('game:end');
     };
-  }, []);
+  }, [userId, username]);
 
   return (
     <GameContext.Provider value={{
-      userId: localStorage.getItem('userId') || '',
-      username: localStorage.getItem('username') || '',
+      userId,
+      username,
       avatarSeed,
       view,
       playerAmount,
       game,
-      regenerateUsername: () => {},
-      regenerateAvatar: () => {},
+      regenerateUsername,
+      regenerateAvatar,
       enterQueue,
       setView,
       leaveQueue,
