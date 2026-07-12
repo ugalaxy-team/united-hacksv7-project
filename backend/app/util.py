@@ -38,7 +38,7 @@ def run_transition_now(game_id: str) -> None:
             run_date=datetime.datetime.now(tz=datetime.timezone.utc)
         )
     except JobLookupError:
-        pass
+        sio.logger.error(f"Could not find transition {f'{TRANSITION_JOB_PREFIX}:{game_id}'}")
 
 
 def schedule_transition(game_id: str, delay: int, func) -> None:

@@ -18,7 +18,7 @@ async def connect(sid, environ, auth):
     user_id = auth.get('userId') if auth else None
 
     if not username or not user_id:
-        sio.disconnect(sid)
+        await sio.disconnect(sid)
         raise ConnectionRefusedError("Unauthorized")
 
     app.state.user_websocket_sessions[sid] = User(
@@ -167,7 +167,6 @@ async def game_message(sid, data):
             'type': 'error'
         }, to=sid)
         return
-
     if not game:
         await sio.emit('message', {
             'message': 'You are not in an active game.',
@@ -202,7 +201,6 @@ async def game_message(sid, data):
     game.messages.append(message)
     game = await game.save()
     await sio.emit('game:message_sent', jsonable_encoder(message), to=room)
-
     all_sent = all(
         sum(1 for m in game.messages if m.sender.user_id == p.user_id and m.round == game.round) >= game.messages_per_round
         for p in game.players
