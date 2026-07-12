@@ -16,7 +16,7 @@ interface GameMode {
 }
 
 export default function Queue() {
-  const { playerAmount } = useGame();
+  const { playerAmount, resetPlayerAmount } = useGame();
   const [gameModes, setGameModes] = useState<GameMode[]>([]);
   const [joinedQueue, setJoinedQueue] = useState<string | null>(null);
 
@@ -33,6 +33,7 @@ export default function Queue() {
   }, []);
 
   const handleJoin = (queueName: string) => {
+    resetPlayerAmount();
     socket?.emit('queue:join', { queue: queueName });
     setJoinedQueue(queueName);
   };
@@ -41,6 +42,7 @@ export default function Queue() {
     if (joinedQueue) {
       socket?.emit('queue:leave', { queue: joinedQueue });
       setJoinedQueue(null);
+      resetPlayerAmount();
     }
   };
 
@@ -58,7 +60,7 @@ export default function Queue() {
         <div className="w-full flex flex-col gap-5 mb-8">
           {gameModes.map((gm) => {
             const isThisJoined = joinedQueue === gm.name;
-            const currentPlayers = isThisJoined ? playerAmount : 0;
+            const currentPlayers = isThisJoined ? Math.max(playerAmount, 1) : 0;
 
             return (
               <div
@@ -70,7 +72,7 @@ export default function Queue() {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-display text-xl font-extrabold text-gray-800 capitalize tracking-wide">{gm.name}</h3>
                   <span className={`text-sm font-bold px-3 py-1 rounded-full ${isThisJoined ? 'bg-green-500 text-white' : 'bg-green-50 text-green-600'}`}>
-                    {currentPlayers} / {gm.player_count} players
+                    {currentPlayers} / {gm.player_count} found
                   </span>
                 </div>
 

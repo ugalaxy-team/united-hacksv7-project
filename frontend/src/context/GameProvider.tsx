@@ -2,33 +2,51 @@ import React, { useState, useEffect, type ReactNode } from 'react';
 import { GameContext, type ViewState } from './GameContext';
 import { type GameState, type Message, type Vote, type QueueUpdateResponse } from '../interfaces/WSMessage';
 import { socket, initSocket } from '../ws';
+import generateRandomUsername from 'generate-random-username';
+
+const readOrCreate = (key: string, generator: () => string): string => {
+  const stored = localStorage.getItem(key);
+  if (stored) return stored;
+  const value = generator();
+  localStorage.setItem(key, value);
+  return value;
+};
 
 export const GameProvider = ({ children }: { children: ReactNode }) => {
-  const [userId, setUserId] = useState<string | null>(localStorage.getItem('userId'));
-  const [username, setUsername] = useState<string | null>(localStorage.getItem('username'));
+  const [userId] = useState<string>(() => readOrCreate('userId', () => crypto.randomUUID()));
+  const [username, setUsername] = useState<string>(() => readOrCreate('username', () => generateRandomUsername()));
+  const [avatarSeed, setAvatarSeed] = useState<string>(() => readOrCreate('avatarSeed', () => crypto.randomUUID()));
   const [view, setView] = useState<ViewState>('hero');
-  const [playerAmount, setPlayerAmount] = useState<number>(0);
+  const [playerAmount, setPlayerAmount] = useState<number>(1);
   const [game, setGame] = useState<GameState | null>(null);
 
-  const login = (name: string) => {
-    const newId = crypto.randomUUID();
-    localStorage.setItem('userId', newId);
+  const regenerateUsername = () => {
+    const name = generateRandomUsername();
     localStorage.setItem('username', name);
-    setUserId(newId);
     setUsername(name);
+  };
 
-    initSocket(name, newId);
+  const regenerateAvatar = () => {
+    const seed = crypto.randomUUID();
+    localStorage.setItem('avatarSeed', seed);
+    setAvatarSeed(seed);
+  };
+
+  const resetPlayerAmount = () => setPlayerAmount(1);
+
+  const enterQueue = () => {
+    initSocket(username, userId);
     setView('queue');
   };
 
   const leaveQueue = () => {
     socket?.emit('queue:leave', { queue: 'standard' });
     setView('hero');
-    setPlayerAmount(0);
+    setPlayerAmount(1);
   };
 
   useEffect(() => {
-    if (userId && username && !socket) {
+    if (!socket) {
       initSocket(username, userId);
     }
 
@@ -60,7 +78,20 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   }, [userId, username]);
 
   return (
-    <GameContext.Provider value={{ userId, username, view, playerAmount, game, login, setView, leaveQueue }}>
+    <GameContext.Provider value={{
+      userId,
+      username,
+      avatarSeed,
+      view,
+      playerAmount,
+      game,
+      regenerateUsername,
+      regenerateAvatar,
+      enterQueue,
+      setView,
+      leaveQueue,
+      resetPlayerAmount,
+    }}>
       {children}
     </GameContext.Provider>
   );

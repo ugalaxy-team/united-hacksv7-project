@@ -16,7 +16,7 @@ export default function GameOver() {
       isHumanVictory ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
     }`}>
 
-      <div className="w-64 h-64 mb-8 drop-shadow-2xl hover:scale-110 transition-transform cursor-default select-none">
+      <div className="w-64 h-64 mb-8 drop-shadow-2xl cursor-default select-none">
         <DotLottieReact
           src={isHumanVictory ? LOTTIE_VICTORY : LOTTIE_DEFEAT}
           loop

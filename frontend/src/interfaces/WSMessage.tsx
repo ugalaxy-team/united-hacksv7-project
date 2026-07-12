@@ -4,6 +4,7 @@ export interface Player {
   current_game?: string | null;
   current_queue?: string | null;
   is_ai?: boolean;
+  avatar_seed?: string;
 }
 
 export interface Message {
@@ -35,6 +36,7 @@ export interface GameState {
   results_duration: number;
   victory?: boolean;
   ai_player?: Player;
+  topic?: string;
 }
 
 export interface QueueJoinResponse {
