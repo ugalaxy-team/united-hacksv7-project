@@ -1,6 +1,6 @@
 services:
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: game_redis
     ports:
       - "6379:6379"
@@ -21,7 +21,6 @@ services:
     environment:
       - REDIS_OM_URL=redis://redis:6379
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - PYTHONPATH=/app/backend
     command: uvicorn app.init:socket_app --host 0.0.0.0 --port 8000 --reload
     depends_on:
       - redis
