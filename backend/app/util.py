@@ -131,6 +131,7 @@ async def leave_queue(sid: str) -> None:
     await sio.leave_room(sid, queue)
     await sio.emit('queue:player_left', {
         'id': user.id,
+        'game_mode': queue.replace('queue:', '', 1),
         'player_amount': await redis.scard(queue)
     }, to=queue)
     if player:

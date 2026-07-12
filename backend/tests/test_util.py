@@ -134,7 +134,7 @@ class TestUtilLeaveQueue:
         player = await find_player(uid)
         assert player.current_queue is None
         mock_sio.emit.assert_any_await("queue:player_left", {
-            "id": uid, "player_amount": 0
+            "id": uid, "game_mode": "test", "player_amount": 0
         }, to="queue:test")
 
     async def test_no_player(self, sid, mock_sio):

@@ -38,6 +38,11 @@ async def disconnect(sid, reason):
     app.state.user_websocket_sessions.pop(sid, None)
 
 
+@sio.on('queue:list')
+async def queue_list(sid):
+    await sio.emit('queue:list', [gm.model_dump() for gm in settings.game_modes], to=sid)
+
+
 @sio.on('queue:join')
 async def queue_join(sid, data):
     user: User = app.state.user_websocket_sessions[sid]
@@ -79,6 +84,7 @@ async def queue_join(sid, data):
 
     await sio.emit('queue:player_joined', {
         'id': user.id,
+        'game_mode': data['queue'],
         'player_amount': player_amount
     }, to=queue)
 

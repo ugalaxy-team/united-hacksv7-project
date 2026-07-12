@@ -58,6 +58,7 @@ class TestQueueJoin:
 
         mock_sio.emit.assert_any_await("queue:player_joined", {
             "id": f"user_{sid}",
+            "game_mode": "standard",
             "player_amount": 1
         }, to="queue:standard")
         mock_sio.enter_room.assert_awaited_once_with(sid, "queue:standard")
@@ -113,6 +114,7 @@ class TestQueueJoin:
         await queue_join(sid, {"queue": "standard"})
         mock_sio.emit.assert_any_await("queue:player_joined", {
             "id": f"user_{sid}",
+            "game_mode": "standard",
             "player_amount": 1
         }, to="queue:standard")
 
@@ -138,6 +140,7 @@ class TestQueueLeave:
 
         mock_sio.emit.assert_any_await("queue:player_left", {
             "id": f"user_{sid}",
+            "game_mode": "standard",
             "player_amount": 0
         }, to="queue:standard")
         mock_sio.leave_room.assert_awaited()
