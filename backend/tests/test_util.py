@@ -159,7 +159,7 @@ class TestUtilStartGame:
         game_room_id = room.split(":", 1)[1]
         game = await get_game(game_room_id)
         assert game is not None
-        assert len(game.players) == 2
+        assert len(game.players) == 3
         assert game.phase == "chatting"
         game_start_calls = [c for c in mock_sio.emit.call_args_list if c[0][0] == "game:start"]
         assert len(game_start_calls) >= 1

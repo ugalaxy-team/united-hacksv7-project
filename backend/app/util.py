@@ -10,10 +10,10 @@ from pydantic import ValidationError
 
 from app.config import settings, GameMode
 from app import app
-from .schemas import User
+from .schemas import User, GamePublic, PlayerPublic
 from .models import Player, Game
 from .services import sio, redis, scheduler
-from .ai import spawn_ai_player, schedule_ai_round, schedule_ai_vote, get_ai_player
+from .ai import spawn_ai_player, get_ai_player
 
 _ADJECTIVES = [
     "quiet", "lucky", "sleepy", "salty", "cosmic", "rusty", "tiny", "loud",
@@ -83,7 +83,6 @@ async def go_to_voting(game_id: str) -> None:
     game = await game.save()
     await sio.emit("game:voting", to=room)
     schedule_transition(game_id, game.voting_duration, go_to_results)
-    await schedule_ai_vote(game_id)
 
 
 async def go_to_results(game_id: str) -> None:
@@ -93,8 +92,10 @@ async def go_to_results(game_id: str) -> None:
     room = f"game:{game_id}"
     game.phase = "results"
     game = await game.save()
+    from .schemas import VotePublic
+
     await sio.emit(
-        "game:results", [v.model_dump() for v in game.current_votes], to=room
+        "game:results", jsonable_encoder([VotePublic.model_validate(v) for v in game.current_votes]), to=room
     )
     schedule_transition(game_id, game.results_duration, go_to_next_round)
 
@@ -109,7 +110,7 @@ async def game_end(game_id: str) -> None:
         return
     cancel_transition(game_id)
     room = f"game:{game_id}"
-    data = jsonable_encoder(game.model_dump())
+    data = jsonable_encoder(GamePublic.model_validate(game))
     ai_player = get_ai_player(game) or random.choice(game.players)
     victory = False
     votes = {}
@@ -121,13 +122,13 @@ async def game_end(game_id: str) -> None:
             victory = True
             break
 
-    data["ai_player"] = jsonable_encoder(ai_player)
+    data["ai_player"] = jsonable_encoder(PlayerPublic.model_validate(ai_player))
     data["victory"] = victory
     await sio.emit("game:end", data, to=room)
     await sio.close_room(room)
 
     for player in game.players:
-        if getattr(player, "is_ai", False):
+        if player.is_ai:
             await player.delete(player.pk)
             continue
         await player.update(current_game=None)
@@ -144,9 +145,8 @@ async def new_round(game_id: str) -> None:
         return
     await game.update(current_votes=[], phase="chatting", round=game.round + 1)
     game = await game.save()
-    await sio.emit("game:new_round", jsonable_encoder(game), to=f"game:{game_id}")
+    await sio.emit("game:new_round", jsonable_encoder(GamePublic.model_validate(game)), to=f"game:{game_id}")
     schedule_transition(game_id, game.chatting_duration, go_to_voting)
-    await schedule_ai_round(game_id)
 
 
 async def leave_queue(sid: str) -> None:
@@ -258,7 +258,6 @@ async def start_game(players: list[Player], game_mode: GameMode) -> str:
             if player:
                 player.current_game = game.room_id
                 await player.save()
-    await sio.emit("game:start", jsonable_encoder(game), to=room)
+    await sio.emit("game:start", jsonable_encoder(GamePublic.model_validate(game)), to=room)
     schedule_transition(game.room_id, game.chatting_duration, go_to_voting)
-    await schedule_ai_round(game.room_id)
     return room

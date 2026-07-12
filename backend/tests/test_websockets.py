@@ -105,7 +105,7 @@ class TestQueueJoin:
 
         games = await Game.find().all()
         assert len(games) >= 1
-        assert len(games[0].players) == 2
+        assert len(games[0].players) == 3
 
     async def test_player_amount_below_threshold(self, sid, sid2, mock_sio):
         await create_user(sid)

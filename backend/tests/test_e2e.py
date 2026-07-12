@@ -25,7 +25,7 @@ class TestE2EFullGame:
         games = await Game.find().all()
         assert len(games) >= 1
         game = games[-1]
-        assert len(game.players) == 2
+        assert len(game.players) == 3
         assert game.phase == "chatting"
         game_id = game.room_id
 

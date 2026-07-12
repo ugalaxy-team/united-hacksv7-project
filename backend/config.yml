@@ -2,3 +2,9 @@ cors_origins:
   - 'http://localhost'
   - 'http://localhost:5173'
   - 'http://127.0.0.1:5173'
+
+ai_message_chance: 0.25
+ai_vote_chance: 0.25
+ai_response_min_delay: 0.5
+ai_response_max_delay: 3.0
+ai_vote_bandwagon_chance: 0.7

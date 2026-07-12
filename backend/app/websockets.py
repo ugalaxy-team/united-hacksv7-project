@@ -1,11 +1,12 @@
 from app.config import settings
 from app import app
-from .schemas import User
+from .schemas import User, VotePublic, MessagePublic
 from aredis_om import NotFoundError
 from .models import Player, Message, Vote
 import datetime
 from fastapi.encoders import jsonable_encoder
 from .services import sio, redis
+from .ai import try_ai_message, try_ai_vote
 from .util import (
     leave_queue, get_player, get_or_create_player, get_current_game,
     start_game, run_transition_now,
@@ -147,7 +148,8 @@ async def game_vote(sid, data):
     game.current_votes.append(vote)
     game.all_votes.append(vote)
     game = await game.save()
-    await sio.emit('game:vote_casted', jsonable_encoder(vote), to=room)
+    await sio.emit('game:vote_casted', jsonable_encoder(VotePublic.model_validate(vote)), to=room)
+    await try_ai_vote(game.room_id)
     all_voted = all(
         any(v.vote_by.user_id == p.user_id for v in game.current_votes)
         for p in game.players
@@ -199,7 +201,8 @@ async def game_message(sid, data):
     message = await message.save()
     game.messages.append(message)
     game = await game.save()
-    await sio.emit('game:message_sent', jsonable_encoder(message), to=room)
+    await sio.emit('game:message_sent', jsonable_encoder(MessagePublic.model_validate(message)), to=room)
+    await try_ai_message(game.room_id)
     all_sent = all(
         sum(1 for m in game.messages if m.sender.user_id == p.user_id and m.round == game.round) >= game.messages_per_round
         for p in game.players

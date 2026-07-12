@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import random
 import uuid
@@ -6,7 +7,7 @@ from openai import AsyncOpenAI
 from fastapi.encoders import jsonable_encoder
 
 from app.config import settings
-from .services import sio, scheduler
+from .services import sio
 from .models import Player, Message, Vote
 
 client = AsyncOpenAI(
@@ -15,9 +16,6 @@ client = AsyncOpenAI(
 )
 
 AI_MODEL = "tencent/hy3:free"
-
-AI_MESSAGE_JOB_PREFIX = "ai_msg"
-AI_VOTE_JOB_PREFIX = "ai_vote"
 
 SYSTEM_PROMPT = """\
 You are playing an ordinary participant in an anonymous group chat, \
@@ -39,6 +37,7 @@ the topic.
 - Output ONLY the message text itself, no quotes, no signature.
 """
 
+
 def spawn_ai_player() -> Player:
     from app.util import generate_username
 
@@ -51,7 +50,7 @@ def spawn_ai_player() -> Player:
 
 def get_ai_player(game) -> Player | None:
     for p in game.players:
-        if getattr(p, "is_ai", False):
+        if p.is_ai:
             return p
     return None
 
@@ -81,36 +80,8 @@ async def generate_ai_reply(game, ai_player: Player) -> str:
     return text.strip('"').strip()
 
 
-async def schedule_ai_round(game_id: str) -> None:
-    """Call right after the game transitions into the 'chatting' phase."""
+async def try_ai_message(game_id: str) -> None:
     from .util import get_game
-
-    game = await get_game(game_id)
-    if not game:
-        return
-    ai_player = get_ai_player(game)
-    if not ai_player:
-        return
-
-    n_messages = random.randint(1, max(1, game.messages_per_round))
-    duration = game.chatting_duration
-    slots = sorted(random.uniform(3, max(4, duration - 3)) for _ in range(n_messages))
-
-    for i, delay in enumerate(slots):
-        scheduler.add_job(
-            send_ai_message,
-            trigger="date",
-            run_date=datetime.datetime.now(tz=datetime.timezone.utc)
-            + datetime.timedelta(seconds=delay),
-            id=f"{AI_MESSAGE_JOB_PREFIX}:{game_id}:{game.round}:{i}",
-            args=[game_id],
-            misfire_grace_time=5,
-            replace_existing=True,
-        )
-
-
-async def send_ai_message(game_id: str) -> None:
-    from .util import get_game, run_transition_now
 
     game = await get_game(game_id)
     if not game or game.phase != "chatting":
@@ -119,12 +90,47 @@ async def send_ai_message(game_id: str) -> None:
     if not ai_player:
         return
 
-    count = sum(
-        1
-        for m in game.messages
+    ai_count = sum(
+        1 for m in game.messages
         if m.sender.user_id == ai_player.user_id and m.round == game.round
     )
-    if count >= game.messages_per_round:
+    if ai_count >= game.messages_per_round:
+        return
+
+    humans_done = all(
+        sum(
+            1 for m in game.messages
+            if m.sender.user_id == p.user_id and m.round == game.round
+        ) >= game.messages_per_round
+        for p in game.players
+        if not p.is_ai
+    )
+
+    if not (random.random() < settings.ai_message_chance or humans_done):
+        return
+
+    asyncio.create_task(send_ai_message(game_id))
+
+
+async def send_ai_message(game_id: str) -> None:
+    from .schemas import MessagePublic
+    from .util import get_game, run_transition_now
+
+    delay = random.uniform(settings.ai_response_min_delay, settings.ai_response_max_delay)
+    await asyncio.sleep(delay)
+
+    game = await get_game(game_id)
+    if not game or game.phase != "chatting":
+        return
+    ai_player = get_ai_player(game)
+    if not ai_player:
+        return
+
+    ai_count = sum(
+        1 for m in game.messages
+        if m.sender.user_id == ai_player.user_id and m.round == game.round
+    )
+    if ai_count >= game.messages_per_round:
         return
 
     text = await generate_ai_reply(game, ai_player)
@@ -140,43 +146,21 @@ async def send_ai_message(game_id: str) -> None:
     game.messages.append(message)
     game = await game.save()
 
-    await sio.emit("game:message_sent", jsonable_encoder(message), to=f"game:{game_id}")
+    await sio.emit("game:message_sent", jsonable_encoder(MessagePublic.model_validate(message)), to=f"game:{game_id}")
 
     all_sent = all(
         sum(
-            1
-            for m in game.messages
+            1 for m in game.messages
             if m.sender.user_id == p.user_id and m.round == game.round
-        )
-        >= game.messages_per_round
+        ) >= game.messages_per_round
         for p in game.players
     )
     if all_sent:
         run_transition_now(game_id)
 
 
-async def schedule_ai_vote(game_id: str) -> None:
-
+async def try_ai_vote(game_id: str) -> None:
     from .util import get_game
-
-    game = await get_game(game_id)
-    if not game:
-        return
-    delay = random.uniform(game.voting_duration * 0.3, game.voting_duration * 0.8)
-    scheduler.add_job(
-        cast_ai_vote,
-        trigger="date",
-        run_date=datetime.datetime.now(tz=datetime.timezone.utc)
-        + datetime.timedelta(seconds=delay),
-        id=f"{AI_VOTE_JOB_PREFIX}:{game_id}:{game.round}",
-        args=[game_id],
-        misfire_grace_time=5,
-        replace_existing=True,
-    )
-
-
-async def cast_ai_vote(game_id: str) -> None:
-    from .util import get_game, run_transition_now
 
     game = await get_game(game_id)
     if not game or game.phase != "voting":
@@ -184,6 +168,36 @@ async def cast_ai_vote(game_id: str) -> None:
     ai_player = get_ai_player(game)
     if not ai_player:
         return
+
+    if any(v.vote_by.user_id == ai_player.user_id for v in game.current_votes):
+        return
+
+    humans_voted = all(
+        any(v.vote_by.user_id == p.user_id for v in game.current_votes)
+        for p in game.players
+        if not p.is_ai
+    )
+
+    if not (random.random() < settings.ai_vote_chance or humans_voted):
+        return
+
+    asyncio.create_task(cast_ai_vote(game_id))
+
+
+async def cast_ai_vote(game_id: str) -> None:
+    from .schemas import VotePublic
+    from .util import get_game, run_transition_now
+
+    delay = random.uniform(settings.ai_response_min_delay, settings.ai_response_max_delay)
+    await asyncio.sleep(delay)
+
+    game = await get_game(game_id)
+    if not game or game.phase != "voting":
+        return
+    ai_player = get_ai_player(game)
+    if not ai_player:
+        return
+
     if any(v.vote_by.user_id == ai_player.user_id for v in game.current_votes):
         return
 
@@ -195,7 +209,7 @@ async def cast_ai_vote(game_id: str) -> None:
     for v in game.current_votes:
         tally[v.vote_for.user_id] = tally.get(v.vote_for.user_id, 0) + 1
 
-    if tally and random.random() < 0.7:
+    if tally and random.random() < settings.ai_vote_bandwagon_chance:
         top_id = max(tally, key=tally.get)
         target = next(
             (p for p in candidates if p.user_id == top_id), random.choice(candidates)
@@ -209,7 +223,7 @@ async def cast_ai_vote(game_id: str) -> None:
     game.all_votes.append(vote)
     game = await game.save()
 
-    await sio.emit("game:vote_casted", jsonable_encoder(vote), to=f"game:{game_id}")
+    await sio.emit("game:vote_casted", jsonable_encoder(VotePublic.model_validate(vote)), to=f"game:{game_id}")
 
     all_voted = all(
         any(v.vote_by.user_id == p.user_id for v in game.current_votes)

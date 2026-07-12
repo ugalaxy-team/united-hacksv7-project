@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # config.yml
     cors_origins: list[str]
 
+    ai_message_chance: float
+    ai_vote_chance: float
+    ai_response_min_delay: float
+    ai_response_max_delay: float
+    ai_vote_bandwagon_chance: float
+
     debug: bool = True
 
     game_modes: list[GameMode] = [

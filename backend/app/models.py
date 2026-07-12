@@ -7,6 +7,7 @@ class Player(JsonModel, index=True):
     username: str = Field(index=True)
     current_game: Optional[str] = None
     current_queue: Optional[str] = None
+    is_ai: bool = Field(default=False)
 
 class Message(JsonModel, index=True):
     text: str
