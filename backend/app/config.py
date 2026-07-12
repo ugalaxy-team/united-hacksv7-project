@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     HOST: str
     PORT: int
     REDIS_OM_URL: str
+    OPENROUTER_API_KEY: str
 
     # config.yml
     cors_origins: list[str]
