@@ -1,3 +1,5 @@
+import Avatar from "boring-avatars";
+
 interface MessageCardProps {
     message: {
         text: string;
@@ -11,9 +13,14 @@ interface MessageCardProps {
 
 const MessageCard = ({ message, isOwn }: MessageCardProps) => {
     return (
-        <div className={`mb-2 ${isOwn ? 'text-right ml-auto' : 'text-left mr-auto'} w-fit border border-gray-300 rounded p-2`}>
-            <p className="text-xs">{message.sender.username}</p>
-            <p>{message.text}</p>
+        <div className={`flex flex-col ${isOwn ? 'items-end justify-items-end' : 'items-start justify-items-start'}`}>
+            <div>
+                <Avatar name={message.sender.user_id} variant="beam" size={30} />
+                <p className="text-xs">{message.sender.username}</p>
+            </div>
+            <div className={`mb-2 w-fit border border-gray-300 rounded p-2`}>
+                <p>{message.text}</p>
+            </div>
         </div>
     );
 };
