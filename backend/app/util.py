@@ -15,6 +15,23 @@ from .models import Player, Game
 from .services import sio, redis, scheduler
 from .ai import spawn_ai_player, schedule_ai_round, schedule_ai_vote, get_ai_player
 
+_ADJECTIVES = [
+    "quiet", "lucky", "sleepy", "salty", "cosmic", "rusty", "tiny", "loud",
+    "grumpy", "spicy", "brave", "clever", "swift", "fuzzy", "jolly", "mellow",
+    "sunny", "witty", "zesty", "bouncy", "chilly", "dandy", "fancy", "glossy",
+    "happy", "icy", "misty", "peppy", "silky", "zippy",
+]
+_NOUNS = [
+    "panda", "ghost", "otter", "waffle", "comet", "raccoon", "noodle", "biscuit",
+    "walrus", "penguin", "badger", "corgi", "dragon", "ferret", "gecko", "hamster",
+    "iguana", "jaguar", "koala", "lemur", "mantis", "newt", "octopus", "puma",
+    "quokka", "robin", "sloth", "toucan", "vulture", "weasel",
+]
+
+
+def generate_username() -> str:
+    return f"{random.choice(_ADJECTIVES)}-{random.choice(_NOUNS)}"
+
 
 def get_game_mode(name: str) -> GameMode | None:
     for gm in settings.game_modes:

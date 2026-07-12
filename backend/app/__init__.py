@@ -26,6 +26,10 @@ app.add_middleware(
 )
 app.state.user_websocket_sessions = {}
 
+from .routes import router
+
+app.include_router(router)
+
 from .websockets import *
 from .services import sio
 

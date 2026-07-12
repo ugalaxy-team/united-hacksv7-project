@@ -39,40 +39,12 @@ the topic.
 - Output ONLY the message text itself, no quotes, no signature.
 """
 
-_ADJECTIVES = [
-    "quiet",
-    "lucky",
-    "sleepy",
-    "salty",
-    "cosmic",
-    "rusty",
-    "tiny",
-    "loud",
-    "grumpy",
-    "spicy",
-]
-_NOUNS = [
-    "panda",
-    "ghost",
-    "otter",
-    "waffle",
-    "comet",
-    "raccoon",
-    "noodle",
-    "biscuit",
-    "walrus",
-    "penguin",
-]
-
-
 def spawn_ai_player() -> Player:
+    from app.util import generate_username
 
-    username = (
-        f"{random.choice(_ADJECTIVES)}_{random.choice(_NOUNS)}{random.randint(10, 99)}"
-    )
     return Player(
         user_id=f"ai-{uuid.uuid4().hex}",
-        username=username,
+        username=generate_username(),
         is_ai=True,
     )
 

@@ -1,13 +1,13 @@
-import generateRandomUsername from "generate-random-username";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 const Hero = () => {
-    const handleClick = () => {
+    const handleClick = async () => {
         const userId = localStorage.getItem('userId');
         if (userId) return;
         localStorage.setItem('userId', crypto.randomUUID());
-        // TODO: AI username should be generated in a similar way
-        const username = generateRandomUsername();
-        localStorage.setItem('username', username);
+        const res = await fetch(`${BACKEND_URL}/api/username`);
+        const data = await res.json();
+        localStorage.setItem('username', data.username);
     };
     return <section>
         <h1>AI Spy</h1>
