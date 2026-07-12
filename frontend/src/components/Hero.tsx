@@ -1,7 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useGame } from '../context/GameContext';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
-import Avatar from 'boring-avatars';
 
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://127.0.0.1:8000';
 const LOTTIE_MASCOT = '/write.json';
 
 const RefreshIcon = ({ size = 18 }: { size?: number }) => (
@@ -14,7 +15,43 @@ const RefreshIcon = ({ size = 18 }: { size?: number }) => (
 );
 
 export default function Hero() {
-  const { username, avatarSeed, regenerateUsername, regenerateAvatar, enterQueue } = useGame();
+  const { enterQueue } = useGame();
+
+  const [currentName, setCurrentName] = useState(localStorage.getItem('username') || 'Loading...');
+
+  const fetchUsernameFromBackend = async () => {
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/username`);
+      const data = await res.json();
+      setCurrentName(data.username);
+      localStorage.setItem('username', data.username);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  useEffect(() => {
+    if (!localStorage.getItem('userId')) {
+      localStorage.setItem('userId', crypto.randomUUID());
+    }
+
+    if (!localStorage.getItem('username')) {
+      fetch(`${BACKEND_URL}/api/username`)
+        .then(res => res.json())
+        .then(data => {
+          localStorage.setItem('username', data.username);
+          setCurrentName(data.username);
+        })
+        .catch(console.error);
+    }
+  }, []);
+
+  const handlePlay = () => {
+    if (!localStorage.getItem('userId')) {
+      localStorage.setItem('userId', crypto.randomUUID());
+    }
+    enterQueue();
+  };
 
   return (
     <div className="flex flex-col items-center justify-center flex-1 p-6">
@@ -30,12 +67,11 @@ export default function Hero() {
       </p>
 
       <div className="flex flex-col items-center gap-4 mb-8">
-
         <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border-2 border-green-200 shadow-sm">
-          <span className="font-bold text-gray-700 text-lg">{username}</span>
+          <span className="font-bold text-gray-700 text-lg">{currentName}</span>
           <button
             type="button"
-            onClick={regenerateUsername}
+            onClick={fetchUsernameFromBackend}
             aria-label="Regenerate nickname"
             className="text-green-600 active:scale-90 transition-transform"
           >
@@ -46,8 +82,9 @@ export default function Hero() {
 
       <button
         type="button"
-        onClick={enterQueue}
-        className="w-full max-w-xs bg-green-500 text-white font-bold py-4 text-lg rounded-2xl shadow-[0_6px_0_rgb(21,128,61)] hover:shadow-[0_4px_0_rgb(21,128,61)] hover:translate-y-[2px] active:shadow-none active:translate-y-[6px] transition-all"
+        onClick={handlePlay}
+        disabled={currentName === 'Loading...'}
+        className="w-full max-w-xs bg-green-500 text-white font-bold py-4 text-lg rounded-2xl shadow-[0_6px_0_rgb(21,128,61)] hover:shadow-[0_4px_0_rgb(21,128,61)] hover:translate-y-[2px] active:shadow-none active:translate-y-[6px] transition-all disabled:opacity-50"
       >
         Play!
       </button>

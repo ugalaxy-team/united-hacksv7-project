@@ -35,12 +35,15 @@ export default function Game() {
         : game.results_duration;
 
     setSecondsLeft(duration);
+  }, [game?.phase, game?.round]);
+
+  useEffect(() => {
     const interval = setInterval(() => {
       setSecondsLeft((s) => (s > 0 ? s - 1 : 0));
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [game?.phase, game?.round, game?.chatting_duration, game?.voting_duration, game?.results_duration]);
+  }, []);
 
   if (!game || !userId) return null;
 
@@ -123,6 +126,13 @@ export default function Game() {
       </div>
 
       <div className="flex-1 flex flex-col relative overflow-hidden">
+
+        {game.phase === 'chatting' && game.topic && (
+          <div className="bg-gradient-to-r from-lime-50 to-green-50 border-b border-green-100 px-6 py-4 shadow-sm z-10 shrink-0 flex flex-col md:flex-row items-center justify-center gap-3">
+            <span className="text-[10px] md:text-xs font-bold uppercase tracking-widest text-green-600 bg-green-100 px-2 py-1 rounded-md">Topic</span>
+            <span className="font-display text-lg md:text-xl font-black text-green-900 text-center leading-tight">{game.topic}</span>
+          </div>
+        )}
 
         <div className={`flex-1 p-4 md:p-8 overflow-y-auto custom-scrollbar transition-all duration-500 ${
           game.phase === 'results' ? 'blur-md scale-95 opacity-40 pointer-events-none' : ''
