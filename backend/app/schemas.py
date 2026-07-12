@@ -40,6 +40,7 @@ class GamePublic(BaseModel):
     max_rounds: int
     messages_per_round: int
     phase: str
+    topic: str
     players: list[PlayerPublic]
     messages: list[MessagePublic]
     current_votes: list[VotePublic]

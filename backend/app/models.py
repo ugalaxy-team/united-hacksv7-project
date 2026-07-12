@@ -26,6 +26,7 @@ class Game(JsonModel, index=True):
     max_rounds: int
     messages_per_round: int
     phase: str # can be chatting, voting and results
+    topic: str
     players: list[Player]
     messages: list[Message]
     # resets every round

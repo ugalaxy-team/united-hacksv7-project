@@ -161,7 +161,7 @@ async def new_round(game_id: str) -> None:
     if game.round == game.max_rounds:
         await game_end(game_id)
         return
-    await game.update(current_votes=[], phase="chatting", round=game.round + 1)
+    await game.update(current_votes=[], phase="chatting", round=game.round + 1, topic=generate_topic())
     game = await game.save()
     await sio.emit("game:new_round", jsonable_encoder(GamePublic.model_validate(game)), to=f"game:{game_id}")
     schedule_transition(game_id, game.chatting_duration, go_to_voting)

@@ -70,7 +70,7 @@ class TestUtilGetGame:
     async def test_found(self):
         game = Game(
             room_id="g_found", round=1, max_rounds=3, messages_per_round=5,
-            phase="chatting", players=[], messages=[], current_votes=[], all_votes=[],
+            phase="chatting", topic="test", players=[], messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -89,7 +89,7 @@ class TestUtilGetCurrentGame:
         p = await create_player(f"user_{sid}")
         game = Game(
             room_id="g_curr", round=1, max_rounds=3, messages_per_round=5,
-            phase="chatting", players=[], messages=[], current_votes=[], all_votes=[],
+            phase="chatting", topic="test", players=[], messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -182,7 +182,7 @@ class TestUtilGameEnd:
         players = await create_players([sid, sid2])
         game = Game(
             room_id="endtest", round=2, max_rounds=2, messages_per_round=5,
-            phase="chatting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="chatting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -210,7 +210,7 @@ class TestUtilNewRound:
         players = await create_players([sid, sid2])
         game = Game(
             room_id="nr_test", round=1, max_rounds=3, messages_per_round=5,
-            phase="voting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="voting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -225,7 +225,7 @@ class TestUtilNewRound:
         players = await create_players([sid, sid2])
         game = Game(
             room_id="nr_last", round=3, max_rounds=3, messages_per_round=5,
-            phase="voting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="voting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -246,7 +246,7 @@ class TestUtilGoToVoting:
         players = await create_players([sid, sid2])
         game = Game(
             room_id="gtv_test", round=1, max_rounds=3, messages_per_round=5,
-            phase="chatting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="chatting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -267,7 +267,7 @@ class TestUtilGoToResults:
         players = await create_players([sid, sid2])
         game = Game(
             room_id="gtr_test", round=1, max_rounds=3, messages_per_round=5,
-            phase="voting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="voting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()

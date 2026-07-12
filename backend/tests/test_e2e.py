@@ -76,7 +76,8 @@ class TestE2EFullGame:
 
         game = Game(
             room_id="victory_test", round=1, max_rounds=1, messages_per_round=5,
-            phase="chatting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="chatting", topic="test topic", players=players, messages=[],
+            current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()

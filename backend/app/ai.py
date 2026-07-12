@@ -73,7 +73,7 @@ async def generate_ai_reply(game, ai_player: Player) -> str:
     chat_log = (
         "\n".join(f"{m.sender.username}: {m.text}" for m in history) or "(nothing yet)"
     )
-    topic = getattr(game, "topic", None) or "free topic"
+    topic = game.topic
 
     prompt = (
         f"Round topic: {topic}\n\n"

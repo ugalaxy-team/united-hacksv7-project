@@ -165,7 +165,7 @@ class TestGameVote:
         game = Game(
             room_id="game_001",
             round=1, max_rounds=3, messages_per_round=5,
-            phase="voting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="voting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
@@ -223,7 +223,7 @@ class TestGameMessage:
         game = Game(
             room_id="game_002",
             round=1, max_rounds=3, messages_per_round=1,
-            phase="chatting", players=players, messages=[], current_votes=[], all_votes=[],
+            phase="chatting", topic="test", players=players, messages=[], current_votes=[], all_votes=[],
             game_mode="standard", chatting_duration=20, voting_duration=10, results_duration=5,
         )
         await game.save()
